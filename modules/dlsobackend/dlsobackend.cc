@@ -46,34 +46,40 @@ DlsoBackend::DlsoBackend(const std::string &suffix)
       throw PDNSException("Unable to load library: " + libpath);
   }
 
-  this->api.new_ = (void * (*)(bool, const char *)) dlsym(this->dlhandle, "pdns_dlso_new");
-  this->api.free_ = (void (*)(void *)) dlsym(this->dlhandle, "pdns_dlso_free");
-  this->api.list = (bool (*)(void *, uint8_t, const char*)) dlsym(this->dlhandle, "pdns_dlso_list");
-  this->api.lookup = (bool (*)(void *, uint16_t, uint8_t, const char*, const sockaddr*)) dlsym(this->dlhandle, "pdns_dlso_lookup");
-  this->api.get = (bool (*)(void *, fill_cb_t, void *)) dlsym(this->dlhandle, "pdns_dlso_get");
-
-  this->api.get_domain_keys = (bool (*)(void * handle, uint8_t qlen, const char * qname, fill_key_cb_t cb, void * keys)) dlsym(this->dlhandle, "pdns_dlso_domain_keys");
-  this->api.get_metas = (bool (*)(void * handle, uint8_t qlen, const char * qname, fill_metas_cb_t cb, void * metas)) dlsym(this->dlhandle, "pdns_dlso_domain_all_metadatas");
-  this->api.get_meta = (bool (*)(void * handle, uint8_t qlen, const char * qname, uint8_t meta_len, const char * kind, fill_meta_cb_t cb, void * meta)) dlsym(this->dlhandle, "pdns_dlso_domain_metadata");
-
-  this->api.get_before_after = (bool (*)(void * handle, uint32_t domain_id, uint8_t qlen, const char * qname, fill_before_after_t cb, void * beforeAfter)) dlsym(this->dlhandle, "pdns_dlso_get_before_after");
-  this->api.get_tsig_key = (bool (*)(void * handle, uint8_t qlen, const char * qname, uint8_t alg_len, const char * alg, fill_tsig_key_cb_t cb, void * content)) dlsym(this->dlhandle, "pdns_dlso_get_tsig_key");
-
-  if (this->api.new_ == NULL) {
+  dlso_register_t register_api = (dlso_register_t) dlsym(this->dlhandle, "pdns_dlso_register");
+  if (register_api == NULL) {
     dlclose(this->dlhandle);
-    throw PDNSException("Failed to initialize dlso");
+    throw PDNSException("Failed to initialize dlso, no pdns_dlso_register symbol exposed");
   }
 
-  this->handle = this->api.new_(this->d_dnssec, args.c_str());
+  memset(&this->api, 0, sizeof(this->api));
 
-  if (this->handle == NULL) {
+  bool success = register_api(&this->api, this->d_dnssec, args.c_str());
+  if (!success) {
     dlclose(this->dlhandle);
-    throw PDNSException("Failed to initialize dlso");
+    throw PDNSException("Failed to initialize dlso, pdns_dlso_register returned false");
+  }
+
+  // Sanity checks
+  if (this->api.get == NULL) {
+    if (this->api.release != NULL)
+      this->api.release(this->api.handle);
+
+    dlclose(this->dlhandle);
+    throw PDNSException("Failed to initialize dlso, lib did not register a mandatory get function");
+  }
+  if (this->api.lookup == NULL) {
+    if (this->api.release != NULL)
+      this->api.release(this->api.handle);
+
+    dlclose(this->dlhandle);
+    throw PDNSException("Failed to initialize dlso, lib did not register a mandatory lookup function");
   }
 }
 
 DlsoBackend::~DlsoBackend() {
-  this->api.free_(this->handle);
+  if (this->api.release != NULL)
+    this->api.release(this->api.handle);
   dlclose(this->dlhandle);
 }
 
@@ -90,9 +96,9 @@ void DlsoBackend::lookup(const QType &qtype, const DNSName& qdomain, DNSPacket *
 
   if (pkt_p != NULL) {
     ComboAddress edns_or_resolver_ip = pkt_p->getRealRemote().getNetwork();
-    success = api.lookup(handle, qtype.getCode(), qname.size(), qname.c_str(), (sockaddr*) &edns_or_resolver_ip.sin4);
+    success = api.lookup(api.handle, qtype.getCode(), qname.size(), qname.c_str(), (sockaddr*) &edns_or_resolver_ip.sin4);
   } else {
-    success = api.lookup(handle, qtype.getCode(), qname.size(), qname.c_str(), NULL);
+    success = api.lookup(api.handle, qtype.getCode(), qname.size(), qname.c_str(), NULL);
   }
 
   if (!success)
@@ -100,11 +106,13 @@ void DlsoBackend::lookup(const QType &qtype, const DNSName& qdomain, DNSPacket *
 }
 
 bool DlsoBackend::list(const DNSName& target, int domain_id, bool include_disabled) {
+  if (api.list == NULL)
+    return false;
 
   string qname = target.toString();
   bool success;
 
-  success = api.list(handle, qname.size(), qname.c_str());
+  success = api.list(api.handle, qname.size(), qname.c_str());
 
   if (!success)
     throw PDNSException("Backend failed");
@@ -124,7 +132,7 @@ void fill_cb(DNSResourceRecord *rr, const struct resource_record *record) {
 }
 
 bool DlsoBackend::get(DNSResourceRecord &rr) {
-  bool success = api.get(handle, fill_cb, &rr);
+  bool success = api.get(api.handle, fill_cb, &rr);
 
   if (!success) {
     in_query = false;
@@ -160,7 +168,7 @@ bool DlsoBackend::getAllDomainMetadata(const DNSName& name, std::map<std::string
   metas.clear();
 
   string qname = name.toString();
-  return api.get_metas(handle, qname.size(), qname.c_str(), fill_metas_cb, &metas);
+  return api.get_metas(api.handle, qname.size(), qname.c_str(), fill_metas_cb, &metas);
 }
 
 bool DlsoBackend::getDomainMetadata(const DNSName& name, const std::string& kind, std::vector<std::string>& meta) {
@@ -170,7 +178,7 @@ bool DlsoBackend::getDomainMetadata(const DNSName& name, const std::string& kind
   meta.clear();
 
   string qname = name.toString();
-  return api.get_meta(handle, qname.size(), qname.c_str(), kind.size(), kind.c_str(), fill_meta_cb, &meta);
+  return api.get_meta(api.handle, qname.size(), qname.c_str(), kind.size(), kind.c_str(), fill_meta_cb, &meta);
 }
 
 bool DlsoBackend::setDomainMetadata(const DNSName& name, const std::string& kind, const std::vector<std::string>& meta) {
@@ -194,7 +202,7 @@ bool DlsoBackend::getDomainKeys(const DNSName& name, std::vector<DNSBackend::Key
   keys.clear();
 
   string qname = name.toString();
-  return api.get_domain_keys(handle, qname.size(), qname.c_str(), fill_key_cb, &keys);
+  return api.get_domain_keys(api.handle, qname.size(), qname.c_str(), fill_key_cb, &keys);
 }
 
 
@@ -228,7 +236,7 @@ bool DlsoBackend::getTSIGKey(const DNSName& name, DNSName* algorithm, std::strin
   string qname = name.toString();
   string alg = algorithm->toString();
 
-  return api.get_tsig_key(handle, qname.size(), qname.c_str(), alg.size(), alg.c_str(), fill_tsig_key, content);
+  return api.get_tsig_key(api.handle, qname.size(), qname.c_str(), alg.size(), alg.c_str(), fill_tsig_key, content);
 }
 
 bool DlsoBackend::setTSIGKey(const DNSName& name, const DNSName& algorithm, const std::string& content) {
@@ -264,7 +272,7 @@ bool DlsoBackend::getBeforeAndAfterNamesAbsolute(uint32_t id, const DNSName& qna
   ba.before = &before;
   ba.after  = &after;
 
-  return api.get_before_after(handle, id, qname_.size(), qname_.c_str(), fill_before_after, &ba);
+  return api.get_before_after(api.handle, id, qname_.size(), qname_.c_str(), fill_before_after, &ba);
 }
 
 class DlsoBackendFactory : public BackendFactory

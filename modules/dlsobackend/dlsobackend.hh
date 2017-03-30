@@ -79,8 +79,8 @@ typedef void (*fill_metas_cb_t)(std::map<std::string, std::vector<std::string>>*
 typedef void (*fill_before_after_t)(struct before_after_t *, uint8_t before_len, const char * before, uint8_t after_len, const char * after);
 
 struct lib_so_api {
-   void * (*new_)(bool dnssec, const char * args);
-   void (*free_)(void *);
+   void * handle;
+   void (*release)(void * handle);
 
    bool (*lookup)(void * handle, const uint16_t qtype, uint8_t qlen, const char * qname, const struct sockaddr * client_ip);
    bool (*list)(void * handle, uint8_t qlen, const char * qname);
@@ -92,8 +92,9 @@ struct lib_so_api {
 
    bool (*get_before_after)(void * handle, uint32_t domain_id, uint8_t qlen, const char * qname, fill_before_after_t cb, void * beforeAfter);
    bool (*get_tsig_key)(void * handle, uint8_t qlen, const char * qname, uint8_t alg_len, const char * alg, fill_tsig_key_cb_t cb, void * content);
-
 };
+
+typedef bool (*dlso_register_t)(struct lib_so_api* api, bool dnssec, const char * args);
 
 class DlsoBackend : public DNSBackend
 {
@@ -128,12 +129,10 @@ public:
 private:
   int build();
   void * dlhandle;
-  void * handle;
+  struct lib_so_api api;
   bool d_dnssec;
 
   bool in_query;
-
-  struct lib_so_api api;
 };
 
 
