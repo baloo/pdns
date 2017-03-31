@@ -59,6 +59,10 @@ start_master ()
 				source ./backends/ldap-master
 				;;
 
+			dlso*)
+				source ./backends/dlso-master
+				;;
+
 			ext-nsd*)
 				source ./ext/nsd-master
 				;;
