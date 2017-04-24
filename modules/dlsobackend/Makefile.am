@@ -13,8 +13,3 @@ libdlsobackend_la_SOURCES = \
 	dlsobackend.cc
 
 libdlsobackend_la_LDFLAGS = -module -avoid-version
-
-#BUILT_SOURCES = ../../pdns/dnslabeltext.cc
-#
-#../../pdns/dnslabeltext.cc: ../../pdns/dnslabeltext.rl
-#	$(MAKE) -C ../../pdns dnslabeltext.cc

@@ -120,7 +120,8 @@ bool DlsoBackend::list(const DNSName& target, int domain_id, bool include_disabl
   return success;
 }
 
-void fill_cb(DNSResourceRecord *rr, const struct resource_record *record) {
+void fill_cb(void * ptr, const struct resource_record *record) {
+  DNSResourceRecord *rr = (DNSResourceRecord *) ptr;
   rr->qtype = record->qtype;
   rr->qname = DNSName(string(record->qname, record->qname_len));
   rr->qclass = QClass::IN;
@@ -142,7 +143,8 @@ bool DlsoBackend::get(DNSResourceRecord &rr) {
   return true;
 }
 
-void fill_meta_cb(std::vector<std::string>* meta, uint8_t value_len, const struct dns_meta_value * values) {
+void fill_meta_cb(void * ptr, uint8_t value_len, const struct dns_meta_value * values) {
+  std::vector<std::string>* meta = (std::vector<std::string>*) ptr;
   for (uint8_t i=0; i<value_len; i++) {
     const struct dns_meta_value *value = &values[i];
     string value_s = string(value->value, value->value_len);
@@ -151,7 +153,8 @@ void fill_meta_cb(std::vector<std::string>* meta, uint8_t value_len, const struc
   }
 }
 
-void fill_metas_cb(std::map<std::string, std::vector<std::string>>* metas, uint8_t meta_len, const struct dns_meta * c_metas) {
+void fill_metas_cb(void * ptr, uint8_t meta_len, const struct dns_meta * c_metas) {
+  std::map<std::string, std::vector<std::string>>* metas = (std::map<std::string, std::vector<std::string>>*) ptr;
   for (uint8_t i=0; i<meta_len; i++) {
     const struct dns_meta *meta = &c_metas[i];
     string property = string(meta->property, meta->property_len);
@@ -185,7 +188,8 @@ bool DlsoBackend::setDomainMetadata(const DNSName& name, const std::string& kind
   return false;
 }
 
-void fill_key_cb(std::vector<DNSBackend::KeyData>* keys, const struct dnskey *dnskey) {
+void fill_key_cb(void * ptr, const struct dnskey *dnskey) {
+  std::vector<DNSBackend::KeyData>* keys = (std::vector<DNSBackend::KeyData> *) ptr;
   DNSBackend::KeyData key;
   key.id = dnskey->id;
   key.flags = dnskey->flags;
@@ -226,7 +230,8 @@ bool DlsoBackend::doesDNSSEC() {
   return d_dnssec;
 }
 
-void fill_tsig_key(std::string* content, uint8_t key_len, const char * key) {
+void fill_tsig_key(void * ptr, uint8_t key_len, const char * key) {
+  std::string* content = (std::string*) ptr;
   content->operator=(string(key, key_len));
 }
 
@@ -256,7 +261,8 @@ struct before_after_t {
   DNSName* after;
 };
 
-void fill_before_after(struct before_after_t * ba, uint8_t before_len, const char * before, uint8_t after_len, const char * after) {
+void fill_before_after(void * ptr, uint8_t before_len, const char * before, uint8_t after_len, const char * after) {
+  struct before_after_t * ba = (struct before_after_t *) ptr;
   (*ba->before).clear();
   (*ba->before)+= DNSName(string(before, before_len));
   (*ba->after).clear();
