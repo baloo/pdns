@@ -53,23 +53,29 @@ public:
   bool get(DNSResourceRecord &rr);
   bool list(const DNSName& target, int domain_id, bool include_disabled=false);
 
-  // the DNSSEC related (getDomainMetadata has broader uses too)
-  virtual bool getAllDomainMetadata(const DNSName& name, std::map<std::string, std::vector<std::string> >& meta);
-  virtual bool getDomainMetadata(const DNSName& name, const std::string& kind, std::vector<std::string>& meta);
-  virtual bool setDomainMetadata(const DNSName& name, const std::string& kind, const std::vector<std::string>& meta);
-  virtual bool getDomainKeys(const DNSName& name, std::vector<KeyData>& keys);
-  virtual bool removeDomainKey(const DNSName& name, unsigned int id);
-  virtual bool addDomainKey(const DNSName& name, const KeyData& key, int64_t& id);
-  virtual bool activateDomainKey(const DNSName& name, unsigned int id);
-  virtual bool deactivateDomainKey(const DNSName& name, unsigned int id);
-  virtual bool getTSIGKey(const DNSName& name, DNSName* algorithm, string* content);
-  virtual bool setTSIGKey(const DNSName& name, const DNSName& algorithm, const string& content);
-  virtual bool deleteTSIGKey(const DNSName& name);
-  virtual bool getTSIGKeys(std::vector< struct TSIGKey > &keys);
-  virtual bool doesDNSSEC();
+  bool getAllDomainMetadata(const DNSName& name, std::map<std::string, std::vector<std::string> >& meta);
+  bool getDomainMetadata(const DNSName& name, const std::string& kind, std::vector<std::string>& meta);
+  bool setDomainMetadata(const DNSName& name, const std::string& kind, const std::vector<std::string>& meta);
+  bool getDomainKeys(const DNSName& name, std::vector<KeyData>& keys);
+  bool removeDomainKey(const DNSName& name, unsigned int id);
+  bool addDomainKey(const DNSName& name, const KeyData& key, int64_t& id);
+  bool activateDomainKey(const DNSName& name, unsigned int id);
+  bool deactivateDomainKey(const DNSName& name, unsigned int id);
+  bool getTSIGKey(const DNSName& name, DNSName* algorithm, string* content);
+  bool setTSIGKey(const DNSName& name, const DNSName& algorithm, const string& content);
+  bool deleteTSIGKey(const DNSName& name);
+  bool getTSIGKeys(std::vector< struct TSIGKey > &keys);
+  bool doesDNSSEC();
 
-  virtual bool getBeforeAndAfterNamesAbsolute(uint32_t id, const DNSName& qname, DNSName& unhashed, DNSName& before, DNSName& after);
-  // end of DNSSEC
+  bool getBeforeAndAfterNamesAbsolute(uint32_t id, const DNSName& qname, DNSName& unhashed, DNSName& before, DNSName& after);
+
+  bool updateDNSSECOrderNameAndAuth(uint32_t domain_id, const DNSName& qname, const DNSName& ordername, bool auth, const uint16_t qtype=QType::ANY);
+  bool updateEmptyNonTerminals(uint32_t domain_id, set<DNSName>& insert, set<DNSName>& erase, bool remove);
+  bool getDomainInfo(const DNSName &domain, DomainInfo &di);
+
+  bool startTransaction(const DNSName &domain, int domain_id=-1);
+  bool commitTransaction();
+  bool abortTransaction();
 
 private:
   int build();

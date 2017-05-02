@@ -4,7 +4,8 @@ AM_CPPFLAGS += \
 AM_LDFLAGS = $(THREADFLAGS)
 
 EXTRA_DIST = \
-	OBJECTFILES
+	OBJECTFILES\
+	dlsobackend_api.h
 
 pkglib_LTLIBRARIES = libdlsobackend.la
 
