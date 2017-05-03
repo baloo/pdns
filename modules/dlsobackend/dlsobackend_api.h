@@ -66,7 +66,7 @@ struct lib_so_api {
   void * handle;
   void (*release)(void * handle);
 
-  bool (*lookup)(void * handle, const uint16_t qtype, uint8_t qlen, const char * qname, const struct sockaddr * client_ip);
+  bool (*lookup)(void * handle, const uint16_t qtype, uint8_t qlen, const char * qname, const struct sockaddr * client_ip, int32_t domain_id);
   bool (*list)(void * handle, uint8_t qlen, const char * qname, int32_t domain_id);
   bool (*get)(void * handle, fill_cb_t cb, void * rr);
 

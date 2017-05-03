@@ -87,7 +87,7 @@ DlsoBackend::~DlsoBackend() {
  * The functions here are just remote json stubs that send and receive the method call
  * data is mainly left alone, some defaults are assumed.
  */
-void DlsoBackend::lookup(const QType &qtype, const DNSName& qdomain, DNSPacket *pkt_p, int zoneId) {
+void DlsoBackend::lookup(const QType &qtype, const DNSName& qdomain, DNSPacket *pkt_p, int32_t domain_id) {
   if(in_query)
     throw PDNSException("Attempt to lookup while one running");
 
@@ -96,9 +96,9 @@ void DlsoBackend::lookup(const QType &qtype, const DNSName& qdomain, DNSPacket *
 
   if (pkt_p != NULL) {
     ComboAddress edns_or_resolver_ip = pkt_p->getRealRemote().getNetwork();
-    success = api.lookup(api.handle, qtype.getCode(), qname.size(), qname.c_str(), (sockaddr*) &edns_or_resolver_ip.sin4);
+    success = api.lookup(api.handle, qtype.getCode(), qname.size(), qname.c_str(), (sockaddr*) &edns_or_resolver_ip.sin4, domain_id);
   } else {
-    success = api.lookup(api.handle, qtype.getCode(), qname.size(), qname.c_str(), NULL);
+    success = api.lookup(api.handle, qtype.getCode(), qname.size(), qname.c_str(), NULL, domain_id);
   }
 
   if (!success)

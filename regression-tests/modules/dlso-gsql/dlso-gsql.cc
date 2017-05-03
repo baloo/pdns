@@ -19,7 +19,7 @@ void release(void * ptr) {
 	}
 }
 
-bool lookup(void * ptr, const uint16_t qtype, uint8_t qlen, const char * qname, const struct sockaddr * client_ip) {
+bool lookup(void * ptr, const uint16_t qtype, uint8_t qlen, const char * qname, const struct sockaddr * client_ip, int32_t domain_id) {
 	struct dlso_gsql * handle = (struct dlso_gsql *) ptr;
 	if (!handle) {
 		return false;
@@ -29,7 +29,7 @@ bool lookup(void * ptr, const uint16_t qtype, uint8_t qlen, const char * qname, 
 	struct QType type = QType(qtype);
 	struct DNSName qname_ = DNSName(string(qname, qlen));
 	try {
-		handle->module->lookup(type, qname_);
+		handle->module->lookup(type, qname_, NULL, domain_id);
 	} catch (const PDNSException &e) {
 		handle->in_error = true;
 	}
