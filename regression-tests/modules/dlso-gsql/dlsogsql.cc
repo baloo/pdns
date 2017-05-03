@@ -285,7 +285,10 @@ bool update_dnssec_order_name_and_auth(void * ptr, uint32_t domain_id,
 	struct dlso_gsql * handle = (struct dlso_gsql *) ptr;
 
 	DNSName qname = DNSName(string(qname_, qname_len));
-	DNSName ordername = DNSName(string(ordername_, ordername_len));
+	DNSName ordername;
+	if (ordername_len) {
+		ordername = DNSName(string(ordername_, ordername_len));
+	}
 
 	return handle->module->updateDNSSECOrderNameAndAuth(domain_id, qname, ordername, auth, qtype);
 }
