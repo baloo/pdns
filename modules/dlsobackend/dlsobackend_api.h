@@ -59,8 +59,8 @@ typedef void (*fill_key_cb_t)(const void *, const struct dnskey *);
 typedef void (*fill_tsig_key_cb_t)(const void *, uint8_t key_len, const char * key);
 typedef void (*fill_meta_cb_t)(const void *, uint8_t value_len, const struct dns_value *);
 typedef void (*fill_metas_cb_t)(const void *, uint8_t meta_len, const struct dns_meta *);
-typedef void (*fill_before_after_t)(const void *, uint8_t unhashed_len, const char * unhashed, uint8_t before_len, const char * before, uint8_t after_len, const char * after);
-typedef void (*fill_domain_info_t)(const void *, struct domain_info * di);
+typedef void (*fill_before_after_cb_t)(const void *, uint8_t unhashed_len, const char * unhashed, uint8_t before_len, const char * before, uint8_t after_len, const char * after);
+typedef void (*fill_domain_info_cb_t)(const void *, struct domain_info * di);
 
 struct lib_so_api {
   void * handle;
@@ -82,7 +82,7 @@ struct lib_so_api {
                            uint8_t unhashed_len, const char * unhashed_name,
                            uint8_t before_len, const char * before_name,
                            uint8_t after_len, const char * after_name,
-                           fill_before_after_t cb, void * beforeAfter);
+                           fill_before_after_cb_t cb, void * beforeAfter);
 
   bool (*get_tsig_key)(void * handle, uint8_t qlen, const char * qname, uint8_t alg_len, const char * alg, fill_tsig_key_cb_t cb, void * content);
   bool (*set_tsig_key)(void * handle, uint8_t qlen, const char * qname, uint8_t alg_len, const char * alg, uint8_t content_len, const char * content);
@@ -97,7 +97,7 @@ struct lib_so_api {
                                      bool add);
   bool (*remove_empty_non_terminals)(void * handle, uint32_t domain_id);
 
-  bool (*get_domain_info)(void * handle, uint8_t qlen, const char * qname, fill_domain_info_t cb, void * di);
+  bool (*get_domain_info)(void * handle, uint8_t qlen, const char * qname, fill_domain_info_cb_t cb, void * di);
 
   bool (*start_transaction)(void * handle, uint32_t domain_id, uint8_t qlen, const char * qname);
   bool (*commit_transaction)(void * handle);

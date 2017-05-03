@@ -155,7 +155,7 @@ bool update_empty_non_terminals(void * ptr, uint32_t domain_id, uint8_t qlen, co
 	}
 }
 
-bool get_domain_info(void * ptr, uint8_t qlen, const char * qname_, fill_domain_info_t cb, void * di) {
+bool get_domain_info(void * ptr, uint8_t qlen, const char * qname_, fill_domain_info_cb_t cb, void * di) {
 	struct dlso_gsql * handle = (struct dlso_gsql *) ptr;
 	DNSName qname = DNSName(string(qname_, qlen));
 	DomainInfo my_di;
@@ -237,7 +237,7 @@ bool get_before_after(void * ptr, uint32_t domain_id,
 		uint8_t unhashed_len, const char * unhashed_,
 		uint8_t before_len, const char * before_,
 		uint8_t after_len, const char * after_,
-		fill_before_after_t cb, void * beforeAfter) {
+		fill_before_after_cb_t cb, void * beforeAfter) {
 	struct dlso_gsql * handle = (struct dlso_gsql *) ptr;
 	DNSName qname = DNSName(string(qname_, qname_len));
 	DNSName unhashed;
