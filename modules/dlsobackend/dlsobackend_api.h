@@ -1,5 +1,7 @@
 #include <sys/types.h>
+#include <stdbool.h>
 #include <stdint.h>
+
 
 
 struct resource_record {
@@ -52,13 +54,13 @@ struct domain_info {
   const char * account;
 };
 
-typedef void (*fill_cb_t)(void *, const struct resource_record *);
-typedef void (*fill_key_cb_t)(void *, const struct dnskey *);
-typedef void (*fill_tsig_key_cb_t)(void *, uint8_t key_len, const char * key);
-typedef void (*fill_meta_cb_t)(void *, uint8_t value_len, const struct dns_value *);
-typedef void (*fill_metas_cb_t)(void *, uint8_t meta_len, const struct dns_meta *);
-typedef void (*fill_before_after_t)(void *, uint8_t unhashed_len, const char * unhashed, uint8_t before_len, const char * before, uint8_t after_len, const char * after);
-typedef void (*fill_domain_info_t)(void *, struct domain_info * di);
+typedef void (*fill_cb_t)(const void *, const struct resource_record *);
+typedef void (*fill_key_cb_t)(const void *, const struct dnskey *);
+typedef void (*fill_tsig_key_cb_t)(const void *, uint8_t key_len, const char * key);
+typedef void (*fill_meta_cb_t)(const void *, uint8_t value_len, const struct dns_value *);
+typedef void (*fill_metas_cb_t)(const void *, uint8_t meta_len, const struct dns_meta *);
+typedef void (*fill_before_after_t)(const void *, uint8_t unhashed_len, const char * unhashed, uint8_t before_len, const char * before, uint8_t after_len, const char * after);
+typedef void (*fill_domain_info_t)(const void *, struct domain_info * di);
 
 struct lib_so_api {
   void * handle;
@@ -68,11 +70,11 @@ struct lib_so_api {
   bool (*list)(void * handle, uint8_t qlen, const char * qname, int32_t domain_id);
   bool (*get)(void * handle, fill_cb_t cb, void * rr);
 
-  bool (*get_domain_keys)(void * handle, uint8_t qlen, const char * qname, fill_key_cb_t cb, void * keys);
+  bool (*get_domain_keys)(void * handle, uint8_t qlen, const char * qname, fill_key_cb_t cb, const void * keys);
   bool (*add_domain_key)(void * handle, uint8_t qlen, const char * qname, struct dnskey * key, int64_t *id);
 
-  bool (*get_metas)(void * handle, uint8_t qlen, const char * qname, fill_metas_cb_t cb, void * metas);
-  bool (*get_meta)(void * handle, uint8_t qlen, const char * qname, uint8_t kind_len, const char * kind, fill_meta_cb_t cb, void * meta);
+  bool (*get_metas)(void * handle, uint8_t qlen, const char * qname, fill_metas_cb_t cb, const void * metas);
+  bool (*get_meta)(void * handle, uint8_t qlen, const char * qname, uint8_t kind_len, const char * kind, fill_meta_cb_t cb, const void * meta);
   bool (*set_meta)(void * handle, uint8_t qlen, const char * qname, uint8_t kind_len, const char * kind, uint8_t value_len, struct dns_value * values);
 
   bool (*get_before_after)(void * handle, uint32_t domain_id,

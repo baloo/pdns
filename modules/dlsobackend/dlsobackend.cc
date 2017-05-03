@@ -120,7 +120,7 @@ bool DlsoBackend::list(const DNSName& target, int domain_id, bool include_disabl
   return success;
 }
 
-void fill_cb(void * ptr, const struct resource_record *record) {
+void fill_cb(const void * ptr, const struct resource_record *record) {
   DNSResourceRecord *rr = (DNSResourceRecord *) ptr;
   rr->qtype = record->qtype;
   string qname = string(record->qname, record->qname_len);
@@ -144,7 +144,7 @@ bool DlsoBackend::get(DNSResourceRecord &rr) {
   return true;
 }
 
-void fill_meta_cb(void * ptr, uint8_t value_len, const struct dns_value * values) {
+void fill_meta_cb(const void * ptr, uint8_t value_len, const struct dns_value * values) {
   std::vector<std::string>* meta = (std::vector<std::string>*) ptr;
   for (uint8_t i=0; i<value_len; i++) {
     const struct dns_value *value = &values[i];
@@ -154,7 +154,7 @@ void fill_meta_cb(void * ptr, uint8_t value_len, const struct dns_value * values
   }
 }
 
-void fill_metas_cb(void * ptr, uint8_t meta_len, const struct dns_meta * c_metas) {
+void fill_metas_cb(const void * ptr, uint8_t meta_len, const struct dns_meta * c_metas) {
   std::map<std::string, std::vector<std::string>>* metas = (std::map<std::string, std::vector<std::string>>*) ptr;
   for (uint8_t i=0; i<meta_len; i++) {
     const struct dns_meta *meta = &c_metas[i];
@@ -200,7 +200,7 @@ bool DlsoBackend::setDomainMetadata(const DNSName& name, const std::string& kind
   return status;
 }
 
-void fill_key_cb(void * ptr, const struct dnskey *dnskey) {
+void fill_key_cb(const void * ptr, const struct dnskey *dnskey) {
   std::vector<DNSBackend::KeyData>* keys = (std::vector<DNSBackend::KeyData> *) ptr;
   DNSBackend::KeyData key;
   key.id = dnskey->id;
@@ -255,7 +255,7 @@ bool DlsoBackend::doesDNSSEC() {
   return d_dnssec;
 }
 
-void fill_tsig_key(void * ptr, uint8_t key_len, const char * key) {
+void fill_tsig_key(const void * ptr, uint8_t key_len, const char * key) {
   std::string* content = (std::string*) ptr;
   content->operator=(string(key, key_len));
 }
@@ -292,7 +292,7 @@ struct before_after_t {
   DNSName* after;
 };
 
-void fill_before_after(void * ptr, uint8_t unhashed_len, const char * unhashed_, uint8_t before_len, const char * before_, uint8_t after_len, const char * after_) {
+void fill_before_after(const void * ptr, uint8_t unhashed_len, const char * unhashed_, uint8_t before_len, const char * before_, uint8_t after_len, const char * after_) {
   struct before_after_t * ba = (struct before_after_t *) ptr;
 
   DNSName unhashed;
@@ -392,7 +392,7 @@ bool DlsoBackend::updateEmptyNonTerminals(uint32_t domain_id, set<DNSName>& inse
   return true;
 }
 
-void fill_domain_info(void * di_, struct domain_info * domain_info) {
+void fill_domain_info(const void * di_, struct domain_info * domain_info) {
   DomainInfo * di = (DomainInfo *) di_;
 
   di->masters.clear();
