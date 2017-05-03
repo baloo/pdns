@@ -102,7 +102,7 @@ bool set_tsig_key(void * ptr, uint8_t qlen, const char * qname_, uint8_t alg_len
 	return handle->module->setTSIGKey(qname, alg, content);
 }
 
-bool get_meta(void * ptr, uint8_t qlen, const char * qname_, uint8_t kind_len, const char * kind_, fill_meta_cb_t cb, void * meta) {
+bool get_meta(void * ptr, uint8_t qlen, const char * qname_, uint8_t kind_len, const char * kind_, fill_meta_cb_t cb, const void * meta) {
 	struct dlso_gsql * handle = (struct dlso_gsql *) ptr;
 	DNSName qname = DNSName(string(qname_, qlen));
 	string kind = string(kind_, kind_len);
@@ -208,7 +208,7 @@ bool add_domain_key(void * ptr, uint8_t qlen, const char * qname_, struct dnskey
 	return handle->module->addDomainKey(qname, key, *id);
 }
 
-bool get_domain_keys(void * ptr, uint8_t qlen, const char * qname_, fill_key_cb_t cb, void * keys_) {
+bool get_domain_keys(void * ptr, uint8_t qlen, const char * qname_, fill_key_cb_t cb, const void * keys_) {
 	struct dlso_gsql * handle = (struct dlso_gsql *) ptr;
 	DNSName qname = DNSName(string(qname_, qlen));
 
