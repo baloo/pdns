@@ -43,6 +43,7 @@ gSQLite3Backend::gSQLite3Backend( const std::string & mode, const std::string & 
 {
   try
   {
+    cerr << "sqlite3 filename: " <<  getArg( "database" ) << endl;
     SSQLite3 *ptr = new SSQLite3( getArg( "database" ));
     setDB(ptr);
     if(!getArg("pragma-synchronous").empty()) {
