@@ -22,6 +22,7 @@ gsqlite3-database=pdns.sqlite3
 __EOF__
 		if [ $context != dlso-nodnssec ]
 		then
+			echo "dlso-dnssec" >> pdns-dlso.conf
 			echo "gsqlite3-dnssec" >> pdns-dlso-sqlite3.conf
 		fi
 

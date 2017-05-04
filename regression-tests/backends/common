@@ -121,6 +121,10 @@ start_slave ()
 			source ./backends/oracle-slave
 			;;
 
+		dlso*)
+			source ./backends/dlso-master
+			;;
+
 		ext-bind*)
 			source ./ext/bind-slave
 			;;
