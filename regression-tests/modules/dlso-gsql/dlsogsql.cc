@@ -5,6 +5,7 @@
 #include "../../../modules/gsqlite3backend/gsqlite3backend.hh"
 #include <sys/types.h>
 #include <stdlib.h>
+#include <mutex>
 
 
 struct dlso_gsql {
@@ -310,11 +311,23 @@ bool commit_transaction(void * ptr) {
 	struct dlso_gsql * handle = (struct dlso_gsql *) ptr;
 	return handle->module->commitTransaction();
 }
+
+std::mutex g_configuration_mutex;
+
 extern "C" bool pdns_dlso_register(struct lib_so_api* api, bool dnssec, const char * args) {
 	struct dlso_gsql * gsql = (struct dlso_gsql *) malloc(sizeof(struct dlso_gsql));
 	if (gsql == NULL) {
 		return false;
 	}
+
+	// Configuration and its underlying map does not allow two thread
+	// to write to it concurrently.
+	// Powerdns normally does declare argument and parse configuration
+	// in its very beginning. Our test backend here may be executed
+	// multiple times by different threads (signing thread, packet receiver)
+	// For this reason, I chose to have a simple mutex, to not allow two
+	// threads to register simultinaeously.
+	std::lock_guard<std::mutex> guard(g_configuration_mutex);
 
 	// First load the sqlite3 backend, and declare arguments
 	gSQLite3Factory * factory;
