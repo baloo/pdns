@@ -316,8 +316,14 @@ extern "C" bool pdns_dlso_register(struct lib_so_api* api, bool dnssec, const ch
 	}
 
 	// First load the sqlite3 backend, and declare arguments
-	gSQLite3Factory * factory = new gSQLite3Factory("gsqlite3");
-	factory->declareArguments();
+	gSQLite3Factory * factory;
+	try {
+		factory = new gSQLite3Factory("gsqlite3");
+		factory->declareArguments();
+	} catch (const PDNSException &e) {
+		free(gsql);
+		return false;
+	}
 
 	// Then, loads configuration from file (gsqlite3 arguments are
 	// only parsed after being declared)
@@ -328,7 +334,12 @@ extern "C" bool pdns_dlso_register(struct lib_so_api* api, bool dnssec, const ch
 	arg().laxFile(configname.c_str());
 
 	// And finaly build the module
-	gsql->module = factory->make();
+	try {
+		gsql->module = factory->make();
+	} catch (const PDNSException &e) {
+		free(gsql);
+		return false;
+	}
 	if (gsql->module == NULL) {
 		free(gsql);
 		return false;
