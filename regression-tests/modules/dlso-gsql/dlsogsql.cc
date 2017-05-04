@@ -1,3 +1,4 @@
+#include "../../../pdns/logger.hh"
 #include "../../../pdns/dnsbackend.hh"
 #include "../../../pdns/backends/gsql/gsqlbackend.hh"
 #include "../../../modules/dlsobackend/dlsobackend_api.h"
@@ -331,10 +332,10 @@ extern "C" bool pdns_dlso_register(struct lib_so_api* api, bool dnssec, const ch
 	if(arg()["config-name"]!="")
 		s_programname+="-"+arg()["config-name"];
 	string configname=arg()["config-dir"]+"/"+s_programname+"-sqlite3.conf";
-	cerr << "Config name: " << configname << endl;
+	L << Logger::Info << "Config name: " << configname << endl;
 	arg().laxFile(configname.c_str());
 
-	cerr << "dlsotest is going to open sqlite: " << arg()["gsqlite3-database"] << endl;
+	L << Logger::Info << "dlsotest is going to open sqlite: " << arg()["gsqlite3-database"] << endl;
 	// And finaly build the module
 	try {
 		gsql->module = factory->make();
