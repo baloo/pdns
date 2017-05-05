@@ -489,10 +489,10 @@ test_auth() {
   #run "./timestamp ./start-test-stop 5300 gsqlite3-nsec3-optout-both"
   #run "./timestamp ./start-test-stop 5300 gsqlite3-nsec3-narrow"
 
-  run "./timestamp ./start-test-stop 5300 dlso-nodnssec"
-  run "./timestamp ./start-test-stop 5300 dlso"
-  run "./timestamp ./start-test-stop 5300 dlso-nsec3"
-  run "./timestamp ./start-test-stop 5300 dlso-nsec3-optout"
+  run "./timestamp ./start-test-stop 5300 dlso-nodnssec-both"
+  run "./timestamp ./start-test-stop 5300 dlso-both"
+  run "./timestamp ./start-test-stop 5300 dlso-nsec3-both"
+  run "./timestamp ./start-test-stop 5300 dlso-nsec3-optout-both"
   run "./timestamp ./start-test-stop 5300 dlso-nsec3-narrow"
 
   #run "./timestamp ./start-test-stop 5300 mydns"
