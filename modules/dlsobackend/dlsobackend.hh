@@ -77,6 +77,15 @@ public:
   bool commitTransaction();
   bool abortTransaction();
 
+  void getUnfreshSlaveInfos(vector<DomainInfo> *unfreshDomains);
+  void setNotified(uint32_t domain_id, uint32_t serial);
+  void setFresh(uint32_t domain_id);
+
+  bool replaceRRSet(uint32_t domain_id, const DNSName& qname, const QType& qt, const vector<DNSResourceRecord>& rrset);
+  bool feedRecord(const DNSResourceRecord &rr, string *ordername=0);
+  bool feedEnts(int domain_id, map<DNSName,bool> &nonterm);
+  bool feedEnts3(int domain_id, const DNSName &domain, map<DNSName,bool> &nonterm, const NSEC3PARAMRecordContent& ns3prc, bool narrow);
+
 private:
   int build();
   void * dlhandle;

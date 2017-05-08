@@ -75,7 +75,7 @@ bool get(void * ptr, fill_cb_t cb, void * rr) {
 		resource_record.content_len = content.size();
 		resource_record.ttl = record.ttl;
 		resource_record.auth = record.auth;
-		resource_record.scopeMask = record.scopeMask;
+		resource_record.scope_mask = record.scopeMask;
 		resource_record.domain_id = record.domain_id;
 
 		cb(rr, &resource_record);
@@ -86,13 +86,23 @@ bool get(void * ptr, fill_cb_t cb, void * rr) {
 	}
 }
 
-bool get_tsig_key(void * ptr, uint8_t qlen, const char * qname_, uint8_t alg_len, const char * alg_, fill_tsig_key_cb_t cb, void * content) {
+bool get_tsig_key(void * ptr, uint8_t qlen, const char * qname_, fill_tsig_key_cb_t cb, const void * data) {
 	struct dlso_gsql * handle = (struct dlso_gsql *) ptr;
 	DNSName qname = DNSName(string(qname_, qlen));
-	DNSName alg = DNSName(string(alg_, alg_len));
-	// TODO content should be rewritten
+	DNSName alg;
+	string content;
 
-	return handle->module->getTSIGKey(qname, &alg, (string *) content);
+	if (handle->module->getTSIGKey(qname, &alg, &content)) {
+		if (!alg.empty()) {
+			string alg_ = alg.toString();
+			cb(data, alg_.size(), alg_.c_str(), content.size(), content.c_str());
+		} else {
+			cb(data, 0, NULL, content.size(), content.c_str());
+		}
+		return true;
+	} else {
+		return false;
+	}
 }
 
 bool set_tsig_key(void * ptr, uint8_t qlen, const char * qname_, uint8_t alg_len, const char * alg_, uint8_t content_len, const char * content_) {
@@ -191,6 +201,7 @@ bool get_domain_info(void * ptr, uint8_t qlen, const char * qname_, fill_domain_
 		info.masters = masters;
 
 		cb(di, &info);
+		free(masters);
 		return true;
 	} else {
 		return false;
@@ -312,6 +323,144 @@ bool commit_transaction(void * ptr) {
 	return handle->module->commitTransaction();
 }
 
+bool get_unfresh_slave(void * ptr, fill_domain_info_cb_t cb, void * data) {
+	struct dlso_gsql * handle = (struct dlso_gsql *) ptr;
+	
+	vector<DomainInfo> unfresh;
+	struct domain_info info;
+
+	handle->module->getUnfreshSlaveInfos(&unfresh);
+
+	for (auto my_di: unfresh) {
+		info.id = my_di.id;
+		info.notified_serial = my_di.notified_serial;
+		info.serial = my_di.serial;
+		info.last_check = my_di.last_check;
+		info.kind = my_di.kind;
+
+		string zone = my_di.zone.toString();
+		info.zone_len = zone.size();
+		info.zone = zone.c_str();
+
+		info.account_len = my_di.account.size();
+		info.account = my_di.account.c_str();
+
+		info.master_len = my_di.masters.size();
+
+		struct dns_value * masters = (struct dns_value *) malloc(sizeof(struct dns_value) * info.master_len);
+		if (masters == NULL) {
+			return false;
+		}
+
+		for (int i=0; i < info.master_len; i++) {
+			masters[i].value_len = my_di.masters[i].size();
+			masters[i].value = my_di.masters[i].c_str();
+		}
+		info.masters = masters;
+
+		cb(data, &info);
+		free(masters);
+	}
+
+	return true;
+}
+
+void set_fresh(void * ptr, uint32_t domain_id) {
+	struct dlso_gsql * handle = (struct dlso_gsql *) ptr;
+
+	handle->module->setFresh(domain_id);
+}
+
+void set_notified(void * ptr, uint32_t domain_id, uint32_t serial) {
+	struct dlso_gsql * handle = (struct dlso_gsql *) ptr;
+
+	handle->module->setNotified(domain_id, serial);
+}
+
+bool add_record(void * ptr, const struct resource_record * record, uint8_t ordername_len, const char * ordername_) {
+	struct dlso_gsql * handle = (struct dlso_gsql *) ptr;
+
+	DNSResourceRecord rr;
+	rr.qtype = record->qtype;
+	string qname = string(record->qname, record->qname_len);
+	rr.qname = DNSName(qname);
+	rr.qclass = QClass::IN;
+	rr.content = string(record->content, record->content_len);
+	rr.ttl = record->ttl;
+	rr.auth = record->auth;
+	rr.scopeMask = record->scope_mask;
+	rr.domain_id = record->domain_id;
+
+	if (ordername_len > 0) {
+		string ordername;
+		ordername = string(ordername_, ordername_len);
+		return handle->module->feedRecord(rr, &ordername);
+	} else {
+		return handle->module->feedRecord(rr);
+	}
+}
+
+bool replace_record(void * ptr, uint32_t domain_id, uint8_t qlen, const char * qname, uint16_t qtype, uint16_t record_size, const struct resource_record * records) {
+	struct dlso_gsql * handle = (struct dlso_gsql *) ptr;
+
+	vector<DNSResourceRecord> rrset;
+
+	for (uint16_t i = 0; i < record_size; i++) {
+		const struct resource_record * record = &(records[i]);
+
+		DNSResourceRecord rr;
+		rr.qtype = record->qtype;
+		string qname_ = string(record->qname, record->qname_len);
+		rr.qname = DNSName(qname_);
+		rr.qclass = QClass::IN;
+		rr.content = string(record->content, record->content_len);
+		rr.ttl = record->ttl;
+		rr.auth = record->auth;
+		rr.scopeMask = record->scope_mask;
+		rr.domain_id = record->domain_id;
+
+		rrset.push_back(rr);
+	}
+
+	QType qtype_ = QType(qtype);
+	DNSName qname_ = DNSName(string(qname, qlen));
+
+	return handle->module->replaceRRSet(domain_id, qname_, qtype_, rrset);
+}
+
+bool add_record_ent(void * ptr, uint32_t domain_id, bool auth, uint32_t value_len, const struct dns_value * values) {
+	struct dlso_gsql * handle = (struct dlso_gsql *) ptr;
+	map<DNSName,bool> nonterm;
+
+	for(uint32_t i = 0; i<value_len; i++) {
+		nonterm.insert({DNSName(string(values[i].value, values[i].value_len)), auth});
+	}
+
+	return handle->module->feedEnts(domain_id, nonterm);
+}
+
+bool add_record_ent_nsec3(void * ptr, uint32_t domain_id, uint8_t domain_len, const char * domain_, bool narrow, bool auth, uint32_t value_len, const struct dns_value * values, const struct nsec3_param * ns3) {
+	struct dlso_gsql * handle = (struct dlso_gsql *) ptr;
+	map<DNSName,bool> nonterm;
+	DNSName domain;
+
+	if (domain_len > 0) {
+		domain = DNSName(string(domain_, domain_len));
+	}
+
+	for(uint32_t i = 0; i<value_len; i++) {
+		nonterm.insert({DNSName(string(values[i].value, values[i].value_len)), auth});
+	}
+
+	NSEC3PARAMRecordContent ns3prc;
+	ns3prc.d_algorithm = ns3->alg;
+	ns3prc.d_flags = ns3->flags;
+	ns3prc.d_iterations = ns3->iterations;
+	ns3prc.d_salt = string(ns3->salt, ns3->salt_len);
+
+	return handle->module->feedEnts3(domain_id, domain, nonterm, ns3prc, narrow);
+}
+
 std::mutex g_configuration_mutex;
 
 extern "C" bool pdns_dlso_register(struct lib_so_api* api, bool dnssec, const char * args) {
@@ -320,10 +469,12 @@ extern "C" bool pdns_dlso_register(struct lib_so_api* api, bool dnssec, const ch
 		return false;
 	}
 
-	// Configuration and its underlying map does not allow two thread
-	// to write to it concurrently.
+	// Configuration and its underlying std::map does not allow two thread
+	// to write to it concurrently. When two threads concurrently declareArguments()
+	// the map could do double-free. This is bad and this shouldn't happen.
 	// Powerdns normally does declare argument and parse configuration
-	// in its very beginning. Our test backend here may be executed
+	// in its very beginning in a single-thread. This is not ArgvMap responsability
+	// to protect from current access. This test backend being a wrapper Our test backend here may be executed
 	// multiple times by different threads (signing thread, packet receiver)
 	// For this reason, I chose to have a simple mutex, to not allow two
 	// threads to register simultinaeously.
@@ -388,6 +539,14 @@ extern "C" bool pdns_dlso_register(struct lib_so_api* api, bool dnssec, const ch
 	api->start_transaction = start_transaction;
 	api->commit_transaction = commit_transaction;
 	api->abort_transaction = abort_transaction;
+
+	api->get_unfresh_slave = get_unfresh_slave;
+	api->set_fresh = set_fresh;
+	api->set_notified = set_notified;
+
+	api->add_record = add_record;
+	api->replace_record = replace_record;
+	api->add_record_ent = add_record_ent;
 
 	return true;
 }

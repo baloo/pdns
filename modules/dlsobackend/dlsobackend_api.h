@@ -7,13 +7,13 @@
 struct resource_record {
   uint16_t qtype;
   const char * qname;
-  uint32_t qname_len;
+  uint8_t qname_len;
   const char * content;
   uint32_t content_len;
   uint32_t ttl;
   bool auth;
-  uint8_t scopeMask;
-  uint32_t domain_id;
+  uint8_t scope_mask;
+  int32_t domain_id;
 };
 
 struct dnskey {
@@ -22,6 +22,14 @@ struct dnskey {
   bool active;
   uint16_t data_len;
   const char * data;
+};
+
+struct nsec3_param {
+  uint8_t alg;
+  uint8_t flags;
+  uint16_t iterations;
+  const char * salt;
+  uint8_t salt_len;
 };
 
 struct dns_value {
@@ -56,7 +64,7 @@ struct domain_info {
 
 typedef void (*fill_cb_t)(const void *, const struct resource_record *);
 typedef void (*fill_key_cb_t)(const void *, const struct dnskey *);
-typedef void (*fill_tsig_key_cb_t)(const void *, uint8_t key_len, const char * key);
+typedef void (*fill_tsig_key_cb_t)(const void *, uint8_t alg_len, const char * alg, uint8_t key_len, const char * key);
 typedef void (*fill_meta_cb_t)(const void *, uint8_t value_len, const struct dns_value *);
 typedef void (*fill_metas_cb_t)(const void *, uint8_t meta_len, const struct dns_meta *);
 typedef void (*fill_before_after_cb_t)(const void *, uint8_t unhashed_len, const char * unhashed, uint8_t before_len, const char * before, uint8_t after_len, const char * after);
@@ -84,7 +92,7 @@ struct lib_so_api {
                            uint8_t after_len, const char * after_name,
                            fill_before_after_cb_t cb, void * beforeAfter);
 
-  bool (*get_tsig_key)(void * handle, uint8_t qlen, const char * qname, uint8_t alg_len, const char * alg, fill_tsig_key_cb_t cb, void * content);
+  bool (*get_tsig_key)(void * handle, uint8_t qlen, const char * qname, fill_tsig_key_cb_t cb, const void * data);
   bool (*set_tsig_key)(void * handle, uint8_t qlen, const char * qname, uint8_t alg_len, const char * alg, uint8_t content_len, const char * content);
 
   bool (*update_dnssec_order_name_and_auth)(void * handle, uint32_t domain_id,
@@ -103,7 +111,14 @@ struct lib_so_api {
   bool (*commit_transaction)(void * handle);
   bool (*abort_transaction)(void * handle);
 
+  bool (*get_unfresh_slave)(void * ptr, fill_domain_info_cb_t cb, void * data);
+  void (*set_fresh)(void * ptr, uint32_t domain_id);
+  void (*set_notified)(void * ptr, uint32_t domain_id, uint32_t serial);
 
+  bool (*add_record)(void * ptr, const struct resource_record *, uint8_t ordername_len, const char * ordername);
+  bool (*replace_record)(void * ptr, uint32_t domain_id, uint8_t qlen, const char * qname, uint16_t qtype, uint16_t record_size, const struct resource_record * records);
+  bool (*add_record_ent)(void * ptr, uint32_t domain_id, bool auth, uint32_t value_len, const struct dns_value * values);
+  bool (*add_record_ent_nsec3)(void * ptr, uint32_t domain_id, uint8_t domain_len, const char * domain, bool narrow, bool auth, uint32_t value_len, const struct dns_value * values, const struct nsec3_param * ns3);
 };
 
 typedef bool (*dlso_register_t)(struct lib_so_api* api, bool dnssec, const char * args);

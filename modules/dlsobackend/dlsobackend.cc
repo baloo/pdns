@@ -129,7 +129,7 @@ void fill_cb(const void * ptr, const struct resource_record *record) {
   rr->content = string(record->content, record->content_len);
   rr->ttl = record->ttl;
   rr->auth = record->auth;
-  rr->scopeMask = record->scopeMask;
+  rr->scopeMask = record->scope_mask;
   rr->domain_id = record->domain_id;
 }
 
@@ -255,18 +255,28 @@ bool DlsoBackend::doesDNSSEC() {
   return d_dnssec;
 }
 
-void fill_tsig_key(const void * ptr, uint8_t key_len, const char * key) {
-  std::string* content = (std::string*) ptr;
-  content->operator=(string(key, key_len));
+struct fill_tsig {
+  DNSName* algorithm;
+  std::string* content;
+};
+
+void fill_tsig_key(const void * ptr, uint8_t alg_len, const char * alg, uint8_t key_len, const char * key) {
+  struct fill_tsig * data = (struct fill_tsig *) ptr;
+  data->content->operator=(string(key, key_len));
+  if (alg_len > 0)
+    data->algorithm->operator=(DNSName(string(alg, alg_len)));
 }
 
 bool DlsoBackend::getTSIGKey(const DNSName& name, DNSName* algorithm, std::string* content) {
   if (api.get_tsig_key == NULL) return false;
 
-  string qname = name.toString();
-  string alg = algorithm->toString();
+  struct fill_tsig data = {.algorithm = algorithm, .content = content};
 
-  return api.get_tsig_key(api.handle, qname.size(), qname.c_str(), alg.size(), alg.c_str(), fill_tsig_key, content);
+  string qname;
+  if (!name.empty())
+    qname = name.toString();
+
+  return api.get_tsig_key(api.handle, qname.size(), qname.c_str(), fill_tsig_key, &data);
 }
 
 bool DlsoBackend::setTSIGKey(const DNSName& name, const DNSName& algorithm, const std::string& content) {
@@ -358,7 +368,11 @@ bool DlsoBackend::updateDNSSECOrderNameAndAuth(uint32_t domain_id, const DNSName
   if (!ordername_.empty()) {
     ordername = ordername_.toString();
   }
-  //cout << "hello1 " << qname << " ordername " << ordername << endl;
+
+  if (!auth)
+    cout << "hello not " << qname << endl;
+  else
+    cout << "hello " << qname << endl;
 
   return api.update_dnssec_order_name_and_auth(api.handle, domain_id, qname.size(), qname.c_str(), ordername.size(), ordername.c_str(), auth, qtype);
 }
@@ -400,7 +414,11 @@ void fill_domain_info(const void * di_, struct domain_info * domain_info) {
     di->masters.push_back(string(domain_info->masters[i].value, domain_info->masters[i].value_len));
   }
 
-  di->zone = DNSName(string(domain_info->zone, domain_info->zone_len));
+  DNSName zone;
+  if (domain_info->zone_len > 0)
+    zone = DNSName(string(domain_info->zone, domain_info->zone_len));
+
+  di->zone = zone;
   di->last_check = domain_info->last_check;
   di->account = string(domain_info->account, domain_info->account_len);
   di->id = domain_info->id;
@@ -445,6 +463,217 @@ bool DlsoBackend::abortTransaction() {
 bool DlsoBackend::commitTransaction() {
   if (api.commit_transaction == NULL) return false;
   return api.commit_transaction(api.handle);
+}
+
+void fill_unfresh_slave(const void * unfresh_, struct domain_info * domain_info) {
+  vector<DomainInfo> * unfresh = (vector<DomainInfo> *) unfresh_;
+
+  DomainInfo di;
+  fill_domain_info(&di, domain_info);
+
+  unfresh->push_back(di);
+}
+
+void DlsoBackend::getUnfreshSlaveInfos(vector<DomainInfo> *unfreshDomains) {
+  if (api.get_unfresh_slave == NULL) return;
+
+  bool status = api.get_unfresh_slave(api.handle, fill_unfresh_slave, unfreshDomains);
+
+  if (!status) {
+    throw PDNSException("DlsoBackend unable to retrieve list of slave domains");
+  }
+}
+
+void DlsoBackend::setNotified(uint32_t domain_id, uint32_t serial) {
+  if (api.set_notified == NULL) return;
+
+  api.set_notified(api.handle, domain_id, serial);
+}
+
+void DlsoBackend::setFresh(uint32_t domain_id) {
+  if (api.set_fresh == NULL) return;
+
+  api.set_fresh(api.handle, domain_id);
+}
+
+bool DlsoBackend::replaceRRSet(uint32_t domain_id, const DNSName& qname, const QType& qt, const vector<DNSResourceRecord>& rrset) {
+  if (api.replace_record == NULL) return false;
+
+  vector<string> qnames;
+  struct resource_record * records = (struct resource_record *) malloc(sizeof(struct resource_record) * rrset.size());
+  uint32_t i = 0;
+
+  for (const auto rr: rrset) {
+    qnames.push_back(rr.qname.toString());
+
+    const string qname_ = qnames.back();
+
+    records[i].qtype = rr.qtype.getCode();
+    records[i].qname = qname_.c_str();
+    records[i].qname_len = qname_.size();
+    records[i].content = rr.content.c_str();
+    records[i].content_len = rr.content.size();
+    records[i].ttl = rr.ttl;
+    records[i].auth = rr.auth;
+    records[i].scope_mask = rr.scopeMask;
+    records[i].domain_id = rr.domain_id;
+
+    i++;
+  }
+
+  string qname_ = qname.toString();
+
+  try {
+    bool status = api.replace_record(api.handle, domain_id, qname_.size(), qname_.c_str(), qt.getCode(), rrset.size(), records);
+    free(records);
+    return status;
+  } catch (PDNSException &e) {
+    free(records);
+    throw e;
+  }
+}
+
+bool DlsoBackend::feedRecord(const DNSResourceRecord &rr, string *ordername_) {
+  if (api.add_record == NULL) return false;
+
+  string qname = rr.qname.toString();
+
+  struct resource_record record = {
+    .qtype = rr.qtype.getCode(),
+    .qname = qname.c_str(),
+    .qname_len = (uint8_t) qname.size(),
+    .content = rr.content.c_str(),
+    .content_len = (uint32_t) rr.content.size(),
+    .ttl = rr.ttl,
+    .auth = rr.auth,
+    .scope_mask = rr.scopeMask,
+    .domain_id = rr.domain_id,
+  };
+
+  if (!record.auth) {
+    cout << "record qname="<< qname << endl;
+  }
+
+  if (ordername_ != NULL) {
+    return api.add_record(api.handle, &record, ordername_->size(), ordername_->c_str());
+  } else {
+    return api.add_record(api.handle, &record, 0, NULL);
+  }
+}
+
+bool DlsoBackend::feedEnts(int domain_id, map<DNSName,bool> &nonterm) {
+  if (api.add_record_ent == NULL) return false;
+
+  struct dns_value * records = (struct dns_value *) malloc(sizeof(struct dns_value) * nonterm.size());
+  vector<string> values;
+
+  uint32_t i = 0;
+
+  for (const auto& nt: nonterm) {
+    if (nt.second) {
+      values.push_back(nt.first.toString());
+      const string& value = values.back();
+      records[i].value = value.c_str();
+      records[i].value_len = value.size();
+      i++;
+    }
+  }
+
+  try {
+    if (!api.add_record_ent(api.handle, domain_id, true, i, records)) {
+      free(records);
+      return false;
+    }
+  } catch (PDNSException &e) {
+    free(records);
+    throw e;
+  }
+
+  values.clear();
+
+  i = 0;
+
+  for (const auto& nt: nonterm) {
+    if (!nt.second) {
+      values.push_back(nt.first.toString());
+      const string& value = values.back();
+      records[i].value = value.c_str();
+      records[i].value_len = value.size();
+      i++;
+    }
+  }
+
+  try {
+    bool status = api.add_record_ent(api.handle, domain_id, false, i, records);
+    free(records);
+    return status;
+  } catch (PDNSException &e) {
+    free(records);
+    throw e;
+  }
+}
+
+bool DlsoBackend::feedEnts3(int domain_id, const DNSName &domain, map<DNSName,bool> &nonterm, const NSEC3PARAMRecordContent& ns3prc, bool narrow) {
+  if (api.add_record_ent_nsec3 == NULL) return false;
+
+  struct nsec3_param ns3;
+  ns3.alg = ns3prc.d_algorithm;
+  ns3.flags = ns3prc.d_flags;
+  ns3.iterations = ns3prc.d_iterations;
+  ns3.salt_len = ns3prc.d_salt.size();
+  ns3.salt = ns3prc.d_salt.c_str();
+
+  struct dns_value * records = (struct dns_value *) malloc(sizeof(struct dns_value) * nonterm.size());
+  vector<string> values;
+  string domain_ = domain.toString();
+
+  uint32_t i = 0;
+
+  for (const auto& nt: nonterm) {
+    if (nt.second) {
+      values.push_back(nt.first.toString());
+      const string& value = values.back();
+      records[i].value = value.c_str();
+      records[i].value_len = value.size();
+      i++;
+    }
+  }
+
+  try {
+    if (!api.add_record_ent_nsec3(api.handle, domain_id, domain_.size(), domain_.c_str(), narrow, true, i, records, &ns3)) {
+      free(records);
+      return false;
+    }
+  } catch (PDNSException &e) {
+    free(records);
+    throw e;
+  }
+
+  values.clear();
+
+  i = 0;
+
+  for (const auto& nt: nonterm) {
+    if (!nt.second) {
+      values.push_back(nt.first.toString());
+      const string& value = values.back();
+      records[i].value = value.c_str();
+      records[i].value_len = value.size();
+      i++;
+    }
+  }
+
+  try {
+    if (!api.add_record_ent_nsec3(api.handle, domain_id, domain_.size(), domain_.c_str(), narrow, false, i, records, &ns3)) {
+      free(records);
+      return false;
+    }
+  } catch (PDNSException &e) {
+    free(records);
+    throw e;
+  }
+
+  return true;
 }
 
 
